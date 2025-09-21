@@ -1,4 +1,7 @@
+use fluvio::RecordKey;
 use serde::{Deserialize, Serialize};
+
+use crate::publisher::topic::{TopicEvent, fluvio::KeyEvent};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct GroupCreatedEvent {
@@ -38,4 +41,26 @@ pub enum GroupEvent {
     GroupUserAddedEvent(GroupUserAddedEvent),
     #[serde(rename = "group_user_removed")]
     GroupUserRemovedEvent(GroupUserRemovedEvent),
+}
+
+impl TopicEvent for GroupEvent {
+    fn event_topic(&self) -> crate::publisher::topic::Topic {
+        match self {
+            GroupEvent::GroupCreatedEvent(_) => String::from("group"),
+            GroupEvent::GroupDeletedEvent(_) => String::from("group"),
+            GroupEvent::GroupUserAddedEvent(_) => String::from("group"),
+            GroupEvent::GroupUserRemovedEvent(_) => String::from("group"),
+        }
+    }
+}
+
+impl KeyEvent for GroupEvent {
+    fn event_key(&self) -> fluvio::RecordKey {
+        match self {
+            GroupEvent::GroupCreatedEvent(_) => RecordKey::NULL,
+            GroupEvent::GroupDeletedEvent(_) => RecordKey::NULL,
+            GroupEvent::GroupUserAddedEvent(_) => RecordKey::NULL,
+            GroupEvent::GroupUserRemovedEvent(_) => RecordKey::NULL,
+        }
+    }
 }

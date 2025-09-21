@@ -27,7 +27,7 @@ pub struct FluvioHandler<T: TypedEvent> {
 }
 
 pub trait KeyEvent {
-    fn key(&self) -> RecordKey;
+    fn event_key(&self) -> RecordKey;
 }
 
 impl<T> EventPublisher for FluvioHandler<T>
@@ -78,7 +78,7 @@ where
         let producer = binding
             .entry(event.event_topic())
             .or_insert(self.fluvio.topic_producer(event.event_topic()).block_on()?);
-        producer.send(event.key(), event).block_on()?;
+        producer.send(event.event_key(), event).block_on()?;
         Ok(())
     }
 }
