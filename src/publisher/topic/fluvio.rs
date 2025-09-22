@@ -3,8 +3,8 @@ use fluvio::{
     metadata::topic::TopicSpec, spu::SpuSocketPool,
 };
 use pollster::FutureExt;
-use serde::Deserialize;
-use serde_json::from_slice;
+use serde::{Deserialize, Serialize};
+use serde_json::{from_slice, to_vec};
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
 use tokio::{sync::RwLock, task::JoinHandle};
 use tokio_stream::StreamExt;
@@ -19,11 +19,24 @@ type SubscriberMap<T> =
     Arc<RwLock<HashMap<<T as TypedEvent>::EventType, EventSubscriberHdlrFn<T>>>>;
 type ProducerMap = HashMap<Topic, TopicProducer<SpuSocketPool>>;
 
+const CONSUMER_OFFSET: &str = "consumer-auto";
+
 pub struct FluvioHandler<T: TypedEvent> {
     fluvio: Fluvio,
     subscribers: SubscriberMap<T>,
     receivers: Arc<RwLock<HashMap<Topic, (usize, JoinHandle<()>)>>>,
     producers: RefCell<ProducerMap>,
+}
+
+impl<T: TypedEvent> FluvioHandler<T> {
+    pub fn new(fluvio: Fluvio) -> Self {
+        Self {
+            fluvio,
+            subscribers: Default::default(),
+            receivers: Default::default(),
+            producers: Default::default(),
+        }
+    }
 }
 
 pub trait KeyEvent {
@@ -36,9 +49,9 @@ where
         + TopicEvent
         + KeyEvent
         + for<'a> Deserialize<'a>
+        + Serialize
         + Send
         + Sync
-        + Into<Vec<u8>>
         + 'static,
 {
     type Event = T;
@@ -78,50 +91,35 @@ where
         let producer = binding
             .entry(event.event_topic())
             .or_insert(self.fluvio.topic_producer(event.event_topic()).block_on()?);
-        producer.send(event.event_key(), event).block_on()?;
+        producer
+            .send(event.event_key(), to_vec(&event)?)
+            .block_on()?;
         Ok(())
     }
 }
 
 fn new_topic_reader<T>(
     event: &T,
-    self_subscribers: &SubscriberMap<T>,
-    self_fluvio: &Fluvio,
+    subscribers: &SubscriberMap<T>,
+    fluvio: &Fluvio,
 ) -> (usize, JoinHandle<()>)
 where
     T: TypedEvent + TopicEvent + for<'a> Deserialize<'a> + 'static + Send,
 {
-    let subscribers = self_subscribers.clone();
+    let subscribers = subscribers.clone();
     let topic = event.event_topic();
 
-    let admin = self_fluvio.admin().block_on();
-
-    let topics = admin
-        .all::<TopicSpec>()
-        .block_on()
-        .expect("Failed to list topics");
-    let topic_names = topics
-        .iter()
-        .map(|topic| topic.name.clone())
-        .collect::<Vec<String>>();
-
-    //FIXME This should be modificable from the outside
-    if !topic_names.contains(&topic) {
-        let topic_spec = TopicSpec::new_computed(1, 1, None);
-        admin
-            .create(topic.clone(), false, topic_spec)
-            .block_on()
-            .expect(&format!("Error creating topic: {}", topic)); //CRITICAL(Lamoara)Can only break because of race condition, because of diferent admins at the same time 
-    }
+    try_create_topic::<T>(fluvio, &topic);
 
     //FIXME This should be modificable from the outside
     let consumer_config = ConsumerConfigExtBuilder::default()
         .topic(topic.clone())
-        .offset_start(Offset::beginning())
+        .offset_start(Offset::end())
+        .offset_consumer(CONSUMER_OFFSET)
         .build()
         .expect(&format!("Error creating consumer config for {}", topic));
 
-    let mut consumer_stream = self_fluvio
+    let mut consumer_stream = fluvio
         .consumer_with_config(consumer_config)
         .block_on()
         .expect(&format!("Error creating consumer for: {}", topic));
@@ -144,4 +142,29 @@ where
         }
     });
     (0, handle)
+}
+
+fn try_create_topic<T>(fluvio: &Fluvio, topic: &String)
+where
+    T: TypedEvent + TopicEvent + for<'a> Deserialize<'a> + 'static + Send,
+{
+    let admin = fluvio.admin().block_on();
+
+    let topics = admin
+        .all::<TopicSpec>()
+        .block_on()
+        .expect("Failed to list topics");
+    let topic_names = topics
+        .iter()
+        .map(|topic| topic.name.clone())
+        .collect::<Vec<String>>();
+
+    //FIXME This should be modificable from the outside
+    if !topic_names.contains(topic) {
+        let topic_spec = TopicSpec::new_computed(1, 1, None);
+        admin
+            .create(topic.clone(), false, topic_spec)
+            .block_on()
+            .expect(&format!("Error creating topic: {}", topic)); //CRITICAL(Lamoara)Can only break because of race condition, because of diferent admins at the same time 
+    }
 }

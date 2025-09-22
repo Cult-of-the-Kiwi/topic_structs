@@ -1,7 +1,13 @@
 use fluvio::RecordKey;
 use serde::{Deserialize, Serialize};
 
-use crate::publisher::topic::{TopicEvent, fluvio::KeyEvent};
+use crate::{
+    events::DevcordEventType,
+    publisher::{
+        TypedEvent,
+        topic::{TopicEvent, fluvio::KeyEvent},
+    },
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct UserCreated {
@@ -33,6 +39,12 @@ pub enum AuthEvent {
     UserLoggedOutEvent(UserLoggedOut),
 }
 
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum AuthEventType {
+    Auth,
+    User,
+}
+
 impl TopicEvent for AuthEvent {
     fn event_topic(&self) -> crate::publisher::topic::Topic {
         match self {
@@ -50,5 +62,17 @@ impl KeyEvent for AuthEvent {
             AuthEvent::UserLoggedInEvent(_) => RecordKey::NULL,
             AuthEvent::UserLoggedOutEvent(_) => RecordKey::NULL,
         }
+    }
+}
+
+impl TypedEvent for AuthEvent {
+    type EventType = DevcordEventType;
+
+    fn event_type(&self) -> Self::EventType {
+        DevcordEventType::Auth(match self {
+            AuthEvent::UserCreatedEvent(_) => AuthEventType::User,
+            AuthEvent::UserLoggedInEvent(_) => AuthEventType::Auth,
+            AuthEvent::UserLoggedOutEvent(_) => AuthEventType::Auth,
+        })
     }
 }

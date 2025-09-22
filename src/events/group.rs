@@ -1,7 +1,13 @@
 use fluvio::RecordKey;
 use serde::{Deserialize, Serialize};
 
-use crate::publisher::topic::{TopicEvent, fluvio::KeyEvent};
+use crate::{
+    events::DevcordEventType,
+    publisher::{
+        TypedEvent,
+        topic::{TopicEvent, fluvio::KeyEvent},
+    },
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct GroupCreatedEvent {
@@ -43,6 +49,11 @@ pub enum GroupEvent {
     GroupUserRemovedEvent(GroupUserRemovedEvent),
 }
 
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum GroupEventType {
+    Group,
+}
+
 impl TopicEvent for GroupEvent {
     fn event_topic(&self) -> crate::publisher::topic::Topic {
         match self {
@@ -62,5 +73,18 @@ impl KeyEvent for GroupEvent {
             GroupEvent::GroupUserAddedEvent(_) => RecordKey::NULL,
             GroupEvent::GroupUserRemovedEvent(_) => RecordKey::NULL,
         }
+    }
+}
+
+impl TypedEvent for GroupEvent {
+    type EventType = DevcordEventType;
+
+    fn event_type(&self) -> Self::EventType {
+        DevcordEventType::Group(match self {
+            GroupEvent::GroupCreatedEvent(_) => GroupEventType::Group,
+            GroupEvent::GroupDeletedEvent(_) => GroupEventType::Group,
+            GroupEvent::GroupUserAddedEvent(_) => GroupEventType::Group,
+            GroupEvent::GroupUserRemovedEvent(_) => GroupEventType::Group,
+        })
     }
 }

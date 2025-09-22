@@ -1,8 +1,16 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    events::{auth::AuthEvent, group::GroupEvent, message::MessageEvent, user::UserEvent},
-    publisher::topic::{TopicEvent, fluvio::KeyEvent},
+    events::{
+        auth::{AuthEvent, AuthEventType},
+        group::{GroupEvent, GroupEventType},
+        message::{MessageEvent, MessageEventType},
+        user::{UserEvent, UserEventType},
+    },
+    publisher::{
+        TypedEvent,
+        topic::{TopicEvent, fluvio::KeyEvent},
+    },
 };
 
 pub mod auth;
@@ -23,6 +31,14 @@ pub enum DevcordEvent {
     GroupEvent(GroupEvent),
 }
 
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DevcordEventType {
+    User(UserEventType),
+    Auth(AuthEventType),
+    Message(MessageEventType),
+    Group(GroupEventType),
+}
+
 impl TopicEvent for DevcordEvent {
     fn event_topic(&self) -> crate::publisher::topic::Topic {
         match self {
@@ -41,6 +57,19 @@ impl KeyEvent for DevcordEvent {
             DevcordEvent::AuthEvent(event) => event.event_key(),
             DevcordEvent::MessageEvent(event) => event.event_key(),
             DevcordEvent::GroupEvent(event) => event.event_key(),
+        }
+    }
+}
+
+impl TypedEvent for DevcordEvent {
+    type EventType = DevcordEventType;
+
+    fn event_type(&self) -> Self::EventType {
+        match self {
+            DevcordEvent::UserEvent(event_type) => event_type.event_type(),
+            DevcordEvent::AuthEvent(event_type) => event_type.event_type(),
+            DevcordEvent::MessageEvent(event_type) => event_type.event_type(),
+            DevcordEvent::GroupEvent(event_type) => event_type.event_type(),
         }
     }
 }

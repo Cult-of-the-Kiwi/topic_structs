@@ -1,7 +1,13 @@
 use fluvio::RecordKey;
 use serde::{Deserialize, Serialize};
 
-use crate::publisher::topic::{TopicEvent, fluvio::KeyEvent};
+use crate::{
+    events::DevcordEventType,
+    publisher::{
+        TypedEvent,
+        topic::{TopicEvent, fluvio::KeyEvent},
+    },
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MessageSent {
@@ -17,6 +23,11 @@ pub enum MessageEvent {
     MessageSentEvent(MessageSent),
 }
 
+#[derive(Clone, Copy, Hash, PartialEq, PartialOrd, Ord, Eq)]
+pub enum MessageEventType {
+    Message,
+}
+
 impl TopicEvent for MessageEvent {
     fn event_topic(&self) -> crate::publisher::topic::Topic {
         match self {
@@ -30,5 +41,15 @@ impl KeyEvent for MessageEvent {
         match self {
             MessageEvent::MessageSentEvent(_) => RecordKey::NULL,
         }
+    }
+}
+
+impl TypedEvent for MessageEvent {
+    type EventType = DevcordEventType;
+
+    fn event_type(&self) -> Self::EventType {
+        DevcordEventType::Message(match self {
+            MessageEvent::MessageSentEvent(_) => MessageEventType::Message,
+        })
     }
 }
