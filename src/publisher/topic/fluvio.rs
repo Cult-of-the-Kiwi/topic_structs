@@ -1,6 +1,6 @@
 use fluvio::{
-    Fluvio, Offset, RecordKey, TopicProducer, consumer::ConsumerConfigExtBuilder,
-    metadata::topic::TopicSpec, spu::SpuSocketPool,
+    Fluvio, FluvioClusterConfig, Offset, RecordKey, TopicProducer,
+    consumer::ConsumerConfigExtBuilder, metadata::topic::TopicSpec, spu::SpuSocketPool,
 };
 use pollster::FutureExt;
 use serde::{Deserialize, Serialize};
@@ -29,13 +29,35 @@ pub struct FluvioHandler<T: TypedEvent> {
 }
 
 impl<T: TypedEvent> FluvioHandler<T> {
-    pub fn new(fluvio: Fluvio) -> Self {
-        Self {
-            fluvio,
+    pub fn new(fluvio_addr: Option<&str>) -> anyhow::Result<Self> {
+        Ok(Self {
+            fluvio: if let Some(addr) = fluvio_addr {
+                Fluvio::connect_with_config(&FluvioClusterConfig::new(addr)).block_on()?
+            } else {
+                Fluvio::connect().block_on()?
+            },
             subscribers: Default::default(),
             receivers: Default::default(),
             producers: Default::default(),
-        }
+        })
+    }
+
+    pub fn new_with_config(config: &FluvioClusterConfig) -> anyhow::Result<Self> {
+        Ok(Self {
+            fluvio: Fluvio::connect_with_config(&config).block_on()?,
+            subscribers: Default::default(),
+            receivers: Default::default(),
+            producers: Default::default(),
+        })
+    }
+
+    pub fn local() -> anyhow::Result<Self> {
+        Ok(Self {
+            fluvio: Fluvio::connect().block_on()?,
+            subscribers: Default::default(),
+            receivers: Default::default(),
+            producers: Default::default(),
+        })
     }
 }
 
@@ -66,7 +88,11 @@ where
 
         let mut lock = self.receivers.write().block_on();
         lock.entry(event.event_topic())
-            .or_insert_with(|| new_topic_reader::<T>(&event, &self.subscribers, &self.fluvio))
+            .or_insert(new_topic_reader::<T>(
+                &event,
+                &self.subscribers,
+                &self.fluvio,
+            )?)
             .0 += 1;
         Ok(())
     }
@@ -88,9 +114,10 @@ where
 
     fn notify(&self, event: Self::Event) -> anyhow::Result<()> {
         let mut binding = self.producers.borrow_mut();
-        let producer = binding
-            .entry(event.event_topic())
-            .or_insert(self.fluvio.topic_producer(event.event_topic()).block_on()?);
+        let producer = binding.entry(event.event_topic()).or_insert({
+            try_create_topic(&self.fluvio, &event.event_topic())?;
+            self.fluvio.topic_producer(event.event_topic()).block_on()?
+        });
         producer
             .send(event.event_key(), to_vec(&event)?)
             .block_on()?;
@@ -102,27 +129,23 @@ fn new_topic_reader<T>(
     event: &T,
     subscribers: &SubscriberMap<T>,
     fluvio: &Fluvio,
-) -> (usize, JoinHandle<()>)
+) -> anyhow::Result<(usize, JoinHandle<()>)>
 where
     T: TypedEvent + TopicEvent + for<'a> Deserialize<'a> + 'static + Send,
 {
     let subscribers = subscribers.clone();
     let topic = event.event_topic();
 
-    try_create_topic::<T>(fluvio, &topic);
+    try_create_topic(fluvio, &topic)?;
 
     //FIXME This should be modificable from the outside
     let consumer_config = ConsumerConfigExtBuilder::default()
         .topic(topic.clone())
         .offset_start(Offset::end())
         .offset_consumer(CONSUMER_OFFSET)
-        .build()
-        .expect(&format!("Error creating consumer config for {}", topic));
+        .build()?;
 
-    let mut consumer_stream = fluvio
-        .consumer_with_config(consumer_config)
-        .block_on()
-        .expect(&format!("Error creating consumer for: {}", topic));
+    let mut consumer_stream = fluvio.consumer_with_config(consumer_config).block_on()?;
 
     let event_type = event.event_type();
     let handle = tokio::spawn(async move {
@@ -141,19 +164,13 @@ where
             subscriber(event).await;
         }
     });
-    (0, handle)
+    Ok((0, handle))
 }
 
-fn try_create_topic<T>(fluvio: &Fluvio, topic: &String)
-where
-    T: TypedEvent + TopicEvent + for<'a> Deserialize<'a> + 'static + Send,
-{
+fn try_create_topic(fluvio: &Fluvio, topic: &String) -> anyhow::Result<()> {
     let admin = fluvio.admin().block_on();
 
-    let topics = admin
-        .all::<TopicSpec>()
-        .block_on()
-        .expect("Failed to list topics");
+    let topics = admin.all::<TopicSpec>().block_on()?;
     let topic_names = topics
         .iter()
         .map(|topic| topic.name.clone())
@@ -162,9 +179,8 @@ where
     //FIXME This should be modificable from the outside
     if !topic_names.contains(topic) {
         let topic_spec = TopicSpec::new_computed(1, 1, None);
-        admin
-            .create(topic.clone(), false, topic_spec)
-            .block_on()
-            .expect(&format!("Error creating topic: {}", topic)); //CRITICAL(Lamoara)Can only break because of race condition, because of diferent admins at the same time 
+        admin.create(topic.clone(), false, topic_spec).block_on()?
     }
+
+    Ok(())
 }
