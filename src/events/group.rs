@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct GroupCreatedEvent {
     pub group_id: String,
     pub owner_id: String,
@@ -17,26 +17,26 @@ pub struct GroupCreatedEvent {
     pub member_ids: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct GroupDeletedEvent {
     pub group_id: String,
     pub owner_id: String,
     pub member_ids: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct GroupUserAddedEvent {
     pub group_id: String,
     pub user_id: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct GroupUserRemovedEvent {
     pub group_id: String,
     pub user_id: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "kind")]
 pub enum GroupEvent {
     #[serde(rename = "group_created")]

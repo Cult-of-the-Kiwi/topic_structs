@@ -9,14 +9,14 @@ use crate::{
     },
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct MessageSent {
     pub channel_id: String,
     pub sender: String,
     pub message: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "kind")]
 pub enum MessageEvent {
     #[serde(rename = "message_sent")]

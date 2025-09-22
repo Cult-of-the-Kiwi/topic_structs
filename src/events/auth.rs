@@ -9,26 +9,26 @@ use crate::{
     },
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct UserCreated {
     pub id: String,
     pub username: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct UserLoggedIn {
     pub id: String,
     pub username: String,
     pub login_time: i64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct UserLoggedOut {
     pub id: String,
     pub logout_time: i64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "kind")]
 pub enum AuthEvent {
     #[serde(rename = "user_created")]

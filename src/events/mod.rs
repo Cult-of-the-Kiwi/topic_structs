@@ -18,7 +18,7 @@ pub mod group;
 pub mod message;
 pub mod user;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "service")]
 pub enum DevcordEvent {
     #[serde(rename = "user")]

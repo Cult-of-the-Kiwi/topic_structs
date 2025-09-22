@@ -1,12 +1,7 @@
 use fluvio::Fluvio;
 
 use crate::{
-    events::{
-        DevcordEvent,
-        message::{MessageEvent, MessageSent},
-    },
-    publisher::topic::fluvio::FluvioHandler,
-    tests::publisher::test_notify,
+    events::DevcordEvent, publisher::topic::fluvio::FluvioHandler, tests::publisher::test_notify,
 };
 
 async fn get_fluvio() -> Fluvio {
