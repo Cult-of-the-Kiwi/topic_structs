@@ -13,6 +13,7 @@ use crate::{
 };
 
 mod fluvio_handler;
+mod fluvio_stack;
 
 pub async fn test_subscribe_only_chosen_events<T: EventPublisher<Event = DevcordEvent>>(
     publisher: T,

@@ -1,12 +1,12 @@
 use crate::{
     events::DevcordEvent,
     publisher::topic::fluvio::FluvioHandler,
-    tests::publisher::{test_notify, test_subscribe_only_chosen_events},
+    tests::publisher::{fluvio_stack::FluvioStack, test_notify, test_subscribe_only_chosen_events},
 };
 
 #[tokio::test]
 pub async fn fluvio_test_notify() {
-    let handler: FluvioHandler<DevcordEvent> = FluvioHandler::new(None).unwrap();
+    let handler: FluvioHandler<DevcordEvent> = FluvioStack::get_fluvio_handler().await.unwrap();
 
     test_notify(handler).await;
 }
