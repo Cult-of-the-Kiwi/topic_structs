@@ -17,7 +17,7 @@ mod fluvio_stack;
 
 pub async fn test_subscribe_only_chosen_events<T: EventPublisher<Event = DevcordEvent>>(
     publisher: T,
-) {
+) -> anyhow::Result<()> {
     let event1 = DevcordEvent::UserEvent(UserEvent::UserUpdatedEvent(UserUpdated {
         id: String::from("Test"),
     }));
@@ -41,16 +41,20 @@ pub async fn test_subscribe_only_chosen_events<T: EventPublisher<Event = Devcord
         )
         .unwrap();
 
-    publisher.notify(event1.clone()).unwrap();
+    publisher.notify(event1.clone())?;
 
     let received_event = rx.recv().await.unwrap();
     assert_eq!(event1, received_event);
-    publisher.notify(event2.clone()).unwrap();
+    publisher.notify(event2.clone())?;
     let received_event = timeout(Duration::from_secs(1), rx.recv()).await.ok();
-    assert_eq!(None, received_event)
+    assert_eq!(None, received_event);
+
+    Ok(())
 }
 
-pub async fn test_notify<T: EventPublisher<Event = DevcordEvent>>(publisher: T) {
+pub async fn test_notify<T: EventPublisher<Event = DevcordEvent>>(
+    publisher: T,
+) -> anyhow::Result<()> {
     let event = DevcordEvent::MessageEvent(MessageEvent::MessageSentEvent(MessageSent {
         channel_id: String::from("Test"),
         sender: String::from("Test"),
@@ -59,20 +63,23 @@ pub async fn test_notify<T: EventPublisher<Event = DevcordEvent>>(publisher: T) 
 
     let (tx, mut rx) = mpsc::channel::<DevcordEvent>(1);
 
-    publisher
-        .subscribe(
-            event.clone(),
-            Box::new(move |event| {
-                let tx = tx.clone();
-                Box::pin(async move {
-                    tx.send(event).await.unwrap();
-                })
-            }),
-        )
-        .unwrap();
+    publisher.subscribe(
+        event.clone(),
+        Box::new(move |event| {
+            let tx = tx.clone();
+            Box::pin(async move {
+                tx.send(event).await.expect("Could not sent received event");
+            })
+        }),
+    )?;
 
-    publisher.notify(event.clone()).unwrap();
+    publisher.notify(event.clone())?;
 
-    let received_event = rx.recv().await.unwrap();
-    assert_eq!(event, received_event)
+    let Some(received_event) = rx.recv().await else {
+        assert!(false);
+        return Ok(());
+    };
+    assert_eq!(event, received_event);
+
+    Ok(())
 }
