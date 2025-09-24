@@ -38,6 +38,7 @@ impl FluvioStack {
             "127.0.0.1:{}",
             stack.sc.get_host_port_ipv4(9003).await?
         )))
+        .await
     }
     async fn new() -> Self {
         let network = Uuid::new_v4().to_string();
