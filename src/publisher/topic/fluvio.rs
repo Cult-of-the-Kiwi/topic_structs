@@ -63,7 +63,7 @@ impl<T: TypedEvent> FluvioHandler<T> {
     #[cfg(test)]
     pub(crate) async fn reset_fluvio(&self) -> anyhow::Result<()> {
         let admin = self.fluvio.admin().await;
-    
+
         let topics = admin.all::<TopicSpec>().await?;
 
         for topic in topics {
@@ -72,7 +72,7 @@ impl<T: TypedEvent> FluvioHandler<T> {
             admin.delete::<TopicSpec>(&name).await?;
         }
 
-    Ok(())
+        Ok(())
     }
 }
 
