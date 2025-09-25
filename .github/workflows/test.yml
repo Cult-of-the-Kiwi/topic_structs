@@ -16,18 +16,21 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@v3
 
+            - name: Install Fluvio CLI
+              run: |
+                  curl -fsS https://hub.infinyon.cloud/install/install.sh | bash
+                  echo "$HOME/.fluvio/bin" >> $GITHUB_PATH
+
+            - name: Start Fluvio
+              run: |
+                  fluvio cluster start
+
             - name: Install Rust toolchain
               if: steps.check_dir.outputs.skip == 'false'
               run: |
                   curl https://sh.rustup.rs -sSf | sh -s -- -y
                   source $HOME/.cargo/env
                   rustup default stable
-
-            - name: Build Debug
-              run: cargo build
-
-            - name: Build Release
-              run: cargo build --release
 
             - name: Run tests
               run: cargo test -- --nocapture
