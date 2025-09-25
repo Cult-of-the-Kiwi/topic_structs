@@ -59,6 +59,21 @@ impl<T: TypedEvent> FluvioHandler<T> {
             producers: Default::default(),
         })
     }
+
+    #[cfg(test)]
+    pub(crate) async fn reset_fluvio(&self) -> anyhow::Result<()> {
+        let admin = self.fluvio.admin().await;
+    
+        let topics = admin.all::<TopicSpec>().await?;
+
+        for topic in topics {
+            let name = topic.name;
+            println!("Borrando topic: {}", name);
+            admin.delete::<TopicSpec>(&name).await?;
+        }
+
+    Ok(())
+    }
 }
 
 pub trait KeyEvent {
