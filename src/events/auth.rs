@@ -2,7 +2,7 @@ use fluvio::RecordKey;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    events::DevcordEventType,
+    events::EventType,
     publisher::{
         TypedEvent,
         topic::{TopicEvent, fluvio::KeyEvent},
@@ -31,8 +31,8 @@ pub struct UserLoggedOut {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "kind")]
 pub enum AuthEvent {
-    #[serde(rename = "user_created")]
-    UserCreatedEvent(UserCreated),
+    #[serde(rename = "user_signed_up")]
+    UserSignedUpEvent(UserCreated),
     #[serde(rename = "user_logged_in")]
     UserLoggedInEvent(UserLoggedIn),
     #[serde(rename = "user_logged_out")]
@@ -41,24 +41,29 @@ pub enum AuthEvent {
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AuthEventType {
-    Auth,
-    User,
+    SignedUp,
+    Logged,
+}
+
+impl TopicEvent for AuthEventType {
+    fn event_topic(&self) -> crate::publisher::topic::Topic {
+        match self {
+            AuthEventType::SignedUp => "auth-signed",
+            AuthEventType::Logged => "auth-logged",
+        }
+    }
 }
 
 impl TopicEvent for AuthEvent {
     fn event_topic(&self) -> crate::publisher::topic::Topic {
-        match self {
-            AuthEvent::UserCreatedEvent(_) => String::from("auth-user"),
-            AuthEvent::UserLoggedInEvent(_) => String::from("auth"),
-            AuthEvent::UserLoggedOutEvent(_) => String::from("auth"),
-        }
+        self.event_type().event_topic()
     }
 }
 
 impl KeyEvent for AuthEvent {
     fn event_key(&self) -> fluvio::RecordKey {
         match self {
-            AuthEvent::UserCreatedEvent(_) => RecordKey::NULL,
+            AuthEvent::UserSignedUpEvent(_) => RecordKey::NULL,
             AuthEvent::UserLoggedInEvent(_) => RecordKey::NULL,
             AuthEvent::UserLoggedOutEvent(_) => RecordKey::NULL,
         }
@@ -66,13 +71,13 @@ impl KeyEvent for AuthEvent {
 }
 
 impl TypedEvent for AuthEvent {
-    type EventType = DevcordEventType;
+    type EventType = EventType;
 
     fn event_type(&self) -> Self::EventType {
-        DevcordEventType::Auth(match self {
-            AuthEvent::UserCreatedEvent(_) => AuthEventType::User,
-            AuthEvent::UserLoggedInEvent(_) => AuthEventType::Auth,
-            AuthEvent::UserLoggedOutEvent(_) => AuthEventType::Auth,
+        EventType::Auth(match self {
+            AuthEvent::UserSignedUpEvent(_) => AuthEventType::SignedUp,
+            AuthEvent::UserLoggedInEvent(_) => AuthEventType::Logged,
+            AuthEvent::UserLoggedOutEvent(_) => AuthEventType::Logged,
         })
     }
 }

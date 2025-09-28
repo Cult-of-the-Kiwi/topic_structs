@@ -2,7 +2,7 @@ use fluvio::RecordKey;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    events::DevcordEventType,
+    events::EventType,
     publisher::{
         TypedEvent,
         topic::{TopicEvent, fluvio::KeyEvent},
@@ -38,16 +38,21 @@ pub enum UserEvent {
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum UserEventType {
-    User,
+    Updated,
     Friendship,
 }
 
 impl TopicEvent for UserEvent {
     fn event_topic(&self) -> crate::publisher::topic::Topic {
+        self.event_type().event_topic()
+    }
+}
+
+impl TopicEvent for UserEventType {
+    fn event_topic(&self) -> crate::publisher::topic::Topic {
         match self {
-            UserEvent::UserUpdatedEvent(_) => String::from("user"),
-            UserEvent::FriendRequestCreatedEvent(_) => String::from("user-friendship"),
-            UserEvent::FriendRequestAnsweredEvent(_) => String::from("user-friendship"),
+            UserEventType::Updated => "user-updated",
+            UserEventType::Friendship => "user-friendship",
         }
     }
 }
@@ -59,11 +64,11 @@ impl KeyEvent for UserEvent {
 }
 
 impl TypedEvent for UserEvent {
-    type EventType = DevcordEventType;
+    type EventType = EventType;
 
     fn event_type(&self) -> Self::EventType {
-        DevcordEventType::User(match self {
-            UserEvent::UserUpdatedEvent(_) => UserEventType::User,
+        EventType::User(match self {
+            UserEvent::UserUpdatedEvent(_) => UserEventType::Updated,
             UserEvent::FriendRequestCreatedEvent(_) => UserEventType::Friendship,
             UserEvent::FriendRequestAnsweredEvent(_) => UserEventType::Friendship,
         })

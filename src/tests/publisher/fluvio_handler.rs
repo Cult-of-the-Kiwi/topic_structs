@@ -4,7 +4,7 @@ use serial_test::serial;
 use tokio::time::sleep;
 
 use crate::{
-    events::DevcordEvent,
+    events::Event,
     publisher::topic::fluvio::FluvioHandler,
     tests::publisher::{
         test_notify, test_override_subscribe, test_subscribe_only_chosen_events, test_unsubscribe,
@@ -13,11 +13,11 @@ use crate::{
 
 const TEST_TIMEOUT: u64 = 400;
 
-async fn test<T: AsyncFnOnce(FluvioHandler<DevcordEvent>) -> anyhow::Result<()>>(
+async fn test<T: AsyncFnOnce(FluvioHandler<Event>) -> anyhow::Result<()>>(
     test: T,
 ) -> anyhow::Result<()> {
     sleep(Duration::from_millis(TEST_TIMEOUT)).await;
-    let handler: FluvioHandler<DevcordEvent> = FluvioHandler::new(None).await.unwrap();
+    let handler: FluvioHandler<Event> = FluvioHandler::new().await.unwrap();
     handler.reset_fluvio().await.unwrap();
 
     test(handler).await
@@ -25,24 +25,24 @@ async fn test<T: AsyncFnOnce(FluvioHandler<DevcordEvent>) -> anyhow::Result<()>>
 
 #[tokio::test]
 #[serial]
-pub async fn fluvio_test_notify() {
-    test(test_notify).await.unwrap();
+pub async fn fluvio_test_notify() -> anyhow::Result<()> {
+    test(test_notify).await
 }
 
 #[tokio::test]
 #[serial]
-pub async fn fluvio_test_subscribe_only_chosen_events() {
-    test(test_subscribe_only_chosen_events).await.unwrap();
+pub async fn fluvio_test_subscribe_only_chosen_events() -> anyhow::Result<()> {
+    test(test_subscribe_only_chosen_events).await
 }
 
 #[tokio::test]
 #[serial]
-pub async fn fluvio_test_unsubscribe() {
-    test(test_unsubscribe).await.unwrap();
+pub async fn fluvio_test_unsubscribe() -> anyhow::Result<()> {
+    test(test_unsubscribe).await
 }
 
 #[tokio::test]
 #[serial]
-pub async fn fluvio_test_override_subscribe() {
-    test(test_override_subscribe).await.unwrap();
+pub async fn fluvio_test_override_subscribe() -> anyhow::Result<()> {
+    test(test_override_subscribe).await
 }

@@ -2,7 +2,7 @@ use fluvio::RecordKey;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    events::DevcordEventType,
+    events::EventType,
     publisher::{
         TypedEvent,
         topic::{TopicEvent, fluvio::KeyEvent},
@@ -25,13 +25,19 @@ pub enum MessageEvent {
 
 #[derive(Clone, Copy, Hash, PartialEq, PartialOrd, Ord, Eq)]
 pub enum MessageEventType {
-    Message,
+    Sent,
 }
 
 impl TopicEvent for MessageEvent {
     fn event_topic(&self) -> crate::publisher::topic::Topic {
+        self.event_type().event_topic()
+    }
+}
+
+impl TopicEvent for MessageEventType {
+    fn event_topic(&self) -> crate::publisher::topic::Topic {
         match self {
-            MessageEvent::MessageSentEvent(_) => String::from("message"),
+            MessageEventType::Sent => "message-sent",
         }
     }
 }
@@ -45,11 +51,11 @@ impl KeyEvent for MessageEvent {
 }
 
 impl TypedEvent for MessageEvent {
-    type EventType = DevcordEventType;
+    type EventType = EventType;
 
     fn event_type(&self) -> Self::EventType {
-        DevcordEventType::Message(match self {
-            MessageEvent::MessageSentEvent(_) => MessageEventType::Message,
+        EventType::Message(match self {
+            MessageEvent::MessageSentEvent(_) => MessageEventType::Sent,
         })
     }
 }

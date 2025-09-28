@@ -18,9 +18,13 @@ pub mod group;
 pub mod message;
 pub mod user;
 
+trait FullEvent: KeyEvent + TopicEvent + TypedEvent {}
+
+impl<T> FullEvent for T where T: TopicEvent + KeyEvent + TypedEvent {}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "service")]
-pub enum DevcordEvent {
+pub enum Event {
     #[serde(rename = "user")]
     UserEvent(UserEvent),
     #[serde(rename = "auth")]
@@ -32,44 +36,57 @@ pub enum DevcordEvent {
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum DevcordEventType {
+pub enum EventType {
     User(UserEventType),
     Auth(AuthEventType),
     Message(MessageEventType),
     Group(GroupEventType),
 }
 
-impl TopicEvent for DevcordEvent {
+impl TopicEvent for EventType {
     fn event_topic(&self) -> crate::publisher::topic::Topic {
-        match self {
-            DevcordEvent::UserEvent(event) => event.event_topic(),
-            DevcordEvent::AuthEvent(event) => event.event_topic(),
-            DevcordEvent::MessageEvent(event) => event.event_topic(),
-            DevcordEvent::GroupEvent(event) => event.event_topic(),
-        }
+        self.inner().event_topic()
     }
 }
 
-impl KeyEvent for DevcordEvent {
+impl TopicEvent for Event {
+    fn event_topic(&self) -> crate::publisher::topic::Topic {
+        self.inner().event_topic()
+    }
+}
+
+impl KeyEvent for Event {
     fn event_key(&self) -> fluvio::RecordKey {
-        match self {
-            DevcordEvent::UserEvent(event) => event.event_key(),
-            DevcordEvent::AuthEvent(event) => event.event_key(),
-            DevcordEvent::MessageEvent(event) => event.event_key(),
-            DevcordEvent::GroupEvent(event) => event.event_key(),
-        }
+        self.inner().event_key()
     }
 }
 
-impl TypedEvent for DevcordEvent {
-    type EventType = DevcordEventType;
+impl TypedEvent for Event {
+    type EventType = EventType;
 
     fn event_type(&self) -> Self::EventType {
+        self.inner().event_type()
+    }
+}
+
+impl Event {
+    fn inner(&self) -> &dyn FullEvent<EventType = EventType> {
         match self {
-            DevcordEvent::UserEvent(event_type) => event_type.event_type(),
-            DevcordEvent::AuthEvent(event_type) => event_type.event_type(),
-            DevcordEvent::MessageEvent(event_type) => event_type.event_type(),
-            DevcordEvent::GroupEvent(event_type) => event_type.event_type(),
+            Event::UserEvent(event) => event,
+            Event::AuthEvent(event) => event,
+            Event::MessageEvent(event) => event,
+            Event::GroupEvent(event) => event,
+        }
+    }
+}
+
+impl EventType {
+    fn inner(&self) -> &dyn TopicEvent {
+        match self {
+            EventType::User(event_type) => event_type,
+            EventType::Auth(event_type) => event_type,
+            EventType::Message(event_type) => event_type,
+            EventType::Group(event_type) => event_type,
         }
     }
 }

@@ -13,7 +13,7 @@ pub trait TypedEvent {
 }
 
 #[async_trait]
-pub trait EventPublisher {
+pub trait EventManager {
     type Event: TypedEvent;
     async fn subscribe(
         &self,

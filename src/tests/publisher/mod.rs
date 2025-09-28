@@ -7,21 +7,21 @@ use tokio::{
 
 use crate::{
     events::{
-        DevcordEvent,
+        Event,
         auth::{AuthEvent, UserCreated},
         message::{MessageEvent, MessageSent},
         user::{UserEvent, UserUpdated},
     },
-    publisher::EventPublisher,
+    publisher::EventManager,
 };
 
 mod fluvio_handler;
 
-async fn subscribe_receiver<T: EventPublisher<Event = DevcordEvent>>(
+async fn subscribe_receiver<T: EventManager<Event = Event>>(
     publisher: &T,
-    event: &DevcordEvent,
-) -> anyhow::Result<Receiver<DevcordEvent>> {
-    let (tx, rx) = mpsc::channel::<DevcordEvent>(1);
+    event: &Event,
+) -> anyhow::Result<Receiver<Event>> {
+    let (tx, rx) = mpsc::channel::<Event>(1);
 
     publisher
         .subscribe(
@@ -33,16 +33,13 @@ async fn subscribe_receiver<T: EventPublisher<Event = DevcordEvent>>(
                 })
             }),
         )
-        .await
-        .unwrap();
+        .await?;
 
     Ok(rx)
 }
 
-pub async fn test_notify<T: EventPublisher<Event = DevcordEvent>>(
-    publisher: T,
-) -> anyhow::Result<()> {
-    let event = DevcordEvent::MessageEvent(MessageEvent::MessageSentEvent(MessageSent {
+pub async fn test_notify<T: EventManager<Event = Event>>(publisher: T) -> anyhow::Result<()> {
+    let event = Event::MessageEvent(MessageEvent::MessageSentEvent(MessageSent {
         channel_id: String::from("Test"),
         sender: String::from("Test"),
         message: String::from("Test"),
@@ -53,22 +50,21 @@ pub async fn test_notify<T: EventPublisher<Event = DevcordEvent>>(
     publisher.notify(event.clone()).await?;
 
     let Some(received_event) = rx.recv().await else {
-        assert!(false);
-        return Ok(());
+        return Err(anyhow::anyhow!("Event not received when it should"));
     };
     assert_eq!(event, received_event);
 
     Ok(())
 }
 
-pub async fn test_subscribe_only_chosen_events<T: EventPublisher<Event = DevcordEvent>>(
+pub async fn test_subscribe_only_chosen_events<T: EventManager<Event = Event>>(
     publisher: T,
 ) -> anyhow::Result<()> {
-    let event_1 = DevcordEvent::UserEvent(UserEvent::UserUpdatedEvent(UserUpdated {
+    let event_1 = Event::UserEvent(UserEvent::UserUpdatedEvent(UserUpdated {
         id: String::from("Test"),
     }));
 
-    let event_2 = DevcordEvent::AuthEvent(AuthEvent::UserCreatedEvent(UserCreated {
+    let event_2 = Event::AuthEvent(AuthEvent::UserSignedUpEvent(UserCreated {
         id: String::from("Test"),
         username: String::from("Test"),
     }));
@@ -77,8 +73,8 @@ pub async fn test_subscribe_only_chosen_events<T: EventPublisher<Event = Devcord
 
     publisher.notify(event_1.clone()).await?;
 
-    let received_event = rx.recv().await.unwrap();
-    assert_eq!(event_1, received_event);
+    let received_event = rx.recv().await;
+    assert_eq!(Some(event_1), received_event);
     publisher.notify(event_2.clone()).await?;
     let received_event = timeout(Duration::from_secs(1), rx.recv()).await.ok();
     assert_eq!(None, received_event);
@@ -86,14 +82,12 @@ pub async fn test_subscribe_only_chosen_events<T: EventPublisher<Event = Devcord
     Ok(())
 }
 
-pub async fn test_unsubscribe<T: EventPublisher<Event = DevcordEvent>>(
-    publisher: T,
-) -> anyhow::Result<()> {
-    let event_1 = DevcordEvent::UserEvent(UserEvent::UserUpdatedEvent(UserUpdated {
+pub async fn test_unsubscribe<T: EventManager<Event = Event>>(publisher: T) -> anyhow::Result<()> {
+    let event_1 = Event::UserEvent(UserEvent::UserUpdatedEvent(UserUpdated {
         id: String::from("Test"),
     }));
 
-    let event_2 = DevcordEvent::UserEvent(UserEvent::UserUpdatedEvent(UserUpdated {
+    let event_2 = Event::UserEvent(UserEvent::UserUpdatedEvent(UserUpdated {
         id: String::from("Test"),
     }));
 
@@ -101,8 +95,8 @@ pub async fn test_unsubscribe<T: EventPublisher<Event = DevcordEvent>>(
 
     publisher.notify(event_1.clone()).await?;
 
-    let received_event = rx.recv().await.unwrap();
-    assert_eq!(event_1, received_event);
+    let received_event = rx.recv().await;
+    assert_eq!(Some(event_1.clone()), received_event);
     publisher.unsubscribe(event_1).await?;
     publisher.notify(event_2.clone()).await?;
     let received_event = timeout(Duration::from_secs(1), rx.recv()).await.ok();
@@ -111,14 +105,14 @@ pub async fn test_unsubscribe<T: EventPublisher<Event = DevcordEvent>>(
     Ok(())
 }
 
-pub async fn test_override_subscribe<T: EventPublisher<Event = DevcordEvent>>(
+pub async fn test_override_subscribe<T: EventManager<Event = Event>>(
     publisher: T,
 ) -> anyhow::Result<()> {
-    let event_1 = DevcordEvent::UserEvent(UserEvent::UserUpdatedEvent(UserUpdated {
+    let event_1 = Event::UserEvent(UserEvent::UserUpdatedEvent(UserUpdated {
         id: String::from("Test"),
     }));
 
-    let event_2 = DevcordEvent::UserEvent(UserEvent::UserUpdatedEvent(UserUpdated {
+    let event_2 = Event::UserEvent(UserEvent::UserUpdatedEvent(UserUpdated {
         id: String::from("Test"),
     }));
 
@@ -126,10 +120,10 @@ pub async fn test_override_subscribe<T: EventPublisher<Event = DevcordEvent>>(
 
     publisher.notify(event_1.clone()).await?;
 
-    let received_event = rx_1.recv().await.unwrap();
-    assert_eq!(event_1, received_event);
+    let received_event = rx_1.recv().await;
+    assert_eq!(Some(event_1.clone()), received_event);
 
-    let (tx_2, mut rx_2) = mpsc::channel::<DevcordEvent>(1);
+    let (tx_2, mut rx_2) = mpsc::channel::<Event>(1);
 
     publisher
         .subscribe(
@@ -141,14 +135,13 @@ pub async fn test_override_subscribe<T: EventPublisher<Event = DevcordEvent>>(
                 })
             }),
         )
-        .await
-        .unwrap();
+        .await?;
 
     publisher.notify(event_2.clone()).await?;
     let received_event = timeout(Duration::from_secs(1), rx_1.recv()).await.ok();
     assert_eq!(Some(None), received_event);
-    let received_event = rx_2.recv().await.unwrap();
-    assert_eq!(event_2, received_event);
+    let received_event = rx_2.recv().await;
+    assert_eq!(Some(event_2), received_event);
 
     Ok(())
 }
