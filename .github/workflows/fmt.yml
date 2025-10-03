@@ -20,6 +20,7 @@ jobs:
               with:
                   toolchain: stable
                   override: true
+                  components: rustfmt
 
             - name: Check formatting
               run: cargo fmt -- --check
